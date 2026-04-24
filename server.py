@@ -159,8 +159,15 @@ async def upload_meeting(file: UploadFile = File(...)):
 
         # Process the meeting
         transcript = transcribe_audio(filename)
-        actions = extract_action_items(transcript)
-        emails = send_emails(actions, job_id)
+
+        # Extract action items (returns JSON string)
+        actions_json_str = extract_action_items(transcript)
+        actions = json.loads(actions_json_str)
+
+        # Send emails (returns JSON string)
+        emails_json_str = send_emails(json.dumps(actions), job_id)
+        email_result = json.loads(emails_json_str)
+        emails = email_result.get("results", [])
 
         # Generate summary
         summary = f"The team discussed key deliverables. {len(actions)} action items were identified and assigned to team members."
