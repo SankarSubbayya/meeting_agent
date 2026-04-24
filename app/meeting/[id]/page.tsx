@@ -99,46 +99,44 @@ export default function MeetingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans p-6 md:p-12">
-      <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* Navigation & Header */}
-        <div>
-          <button onClick={() => window.history.back()} className="text-sm font-medium text-slate-500 hover:text-blue-600 mb-4 flex items-center gap-1">
-            ← Back to Workspace
+    <div className="min-h-screen bg-white font-sans">
+      {/* Header */}
+      <div className="border-b border-slate-200 bg-white sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <button onClick={() => window.history.back()} className="text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors flex items-center gap-2">
+            ← Back
           </button>
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-3xl font-serif font-semibold text-slate-900">{data.title}</h1>
-              <p className="text-slate-500 text-sm mt-1">Briefing ID: {jobId} • Processed autonomously</p>
-            </div>
-            <button className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-50 transition-colors">
-              Export cited.md
-            </button>
-          </div>
+          <button className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-800 transition-colors">
+            Export .md
+          </button>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        {/* Title Section */}
+        <div className="mb-12">
+          <h1 className="text-4xl font-bold text-slate-900 mb-2">{data.title}</h1>
+          <p className="text-slate-500">ID: {jobId} • Processed autonomously</p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          
-          {/* LEFT COLUMN: The Context (Summary & Transcript) */}
-          <div className="lg:col-span-2 space-y-6">
-            
-            {/* AI Summary */}
-            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-blue-600"></span> Executive Summary
-              </h2>
-              <p className="text-slate-600 text-sm leading-relaxed">
+        <div className="grid lg:grid-cols-3 gap-8">
+
+          {/* LEFT COLUMN: Summary & Transcript */}
+          <div className="lg:col-span-2 space-y-8">
+
+            {/* Executive Summary */}
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Executive Summary</h2>
+              <p className="text-slate-600 leading-relaxed">
                 {data.summary}
               </p>
             </div>
 
-            {/* Raw Transcript */}
-            <div className="bg-white border border-slate-200 rounded-xl flex flex-col shadow-sm h-[500px]">
-              <div className="p-4 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
-                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Raw Transcript</h2>
-              </div>
-              <div className="p-6 overflow-y-auto flex-1 bg-slate-50/30">
+            {/* Transcript */}
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Transcript</h2>
+              <div className="bg-slate-50 rounded-lg p-6 max-h-96 overflow-y-auto border border-slate-200">
                 <pre className="text-sm text-slate-600 whitespace-pre-wrap break-words font-sans leading-relaxed">
                   {data.transcript}
                 </pre>
@@ -146,53 +144,46 @@ export default function MeetingPage() {
             </div>
           </div>
 
-          {/* RIGHT COLUMN: The Agent Execution Log */}
-          <div className="space-y-6">
-            <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 overflow-hidden flex flex-col h-full">
-              
-              <div className="p-5 border-b border-slate-800 bg-slate-950/50">
-                <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 
-                  Agent Execution Log
-                </h2>
-                <p className="text-slate-400 text-xs mt-1">Actions taken based on briefing context</p>
-              </div>
+          {/* RIGHT COLUMN: Action Items & Emails */}
+          <div className="space-y-8">
 
-              <div className="p-5 space-y-6 flex-1 overflow-y-auto">
-                
-                {/* Extracted Tasks */}
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Tasks Assigned</h3>
-                  <div className="space-y-3">
-                    {data.actions.map(action => (
-                      <div key={action.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3">
-                        <p className="text-sm text-white font-medium mb-2">{action.action}</p>
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="text-slate-400">👤 {action.owner}</span>
-                          <span className="text-slate-400">📅 {action.deadline}</span>
-                        </div>
+            {/* Action Items */}
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Action Items</h2>
+              <div className="space-y-3">
+                {data.actions.map(action => (
+                  <div key={action.id} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                    <p className="font-medium text-slate-900 text-sm mb-3">{action.action}</p>
+                    <div className="space-y-2 text-xs text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">Assigned to:</span>
+                        <span className="font-medium text-slate-900">{action.owner}</span>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Email Dispatch */}
-                <div>
-                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Communications Dispatched</h3>
-                  <div className="space-y-2">
-                    {data.emails.map((email, i) => (
-                      <div key={i} className="flex justify-between items-center bg-slate-800/50 border border-slate-700/50 rounded-lg p-3">
-                        <span className="text-xs text-slate-300 truncate mr-2">{email.recipient}</span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">
-                          Sent
-                        </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400">Due:</span>
+                        <span className="font-medium text-slate-900">{action.deadline}</span>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
-
+                ))}
               </div>
             </div>
+
+            {/* Notifications Sent */}
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900 mb-4">Notifications</h2>
+              <div className="space-y-2">
+                {data.emails.map((email, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <span className="text-sm text-slate-700 truncate">{email.recipient}</span>
+                    <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded">
+                      Sent
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
           </div>
 
         </div>
