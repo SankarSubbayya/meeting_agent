@@ -24,10 +24,25 @@ export default function Home() {
 
   const fetchMeetings = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/meetings');
-      if (response.ok) {
-        const meetings = await response.json();
-        setRecentBriefings(meetings);
+      // Use GraphQL endpoint (WunderGraph)
+      const response = await fetch('/api/graphql', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: `query GetMeetings {
+            meetings {
+              jobId
+              title
+              status
+              createdAt
+              actions { id }
+            }
+          }`
+        })
+      });
+      const result = await response.json();
+      if (result.data?.meetings) {
+        setRecentBriefings(result.data.meetings);
       }
     } catch (err) {
       console.error('Error fetching meetings:', err);

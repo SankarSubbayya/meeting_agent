@@ -23,12 +23,43 @@ export default function MeetingPage() {
     const fetchMeeting = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://localhost:8000/api/meeting/${jobId}`);
-        if (!response.ok) {
-          throw new Error('Failed to fetch meeting data');
+
+        // Use GraphQL endpoint (WunderGraph)
+        const response = await fetch('/api/graphql', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: `query GetMeeting($jobId: String!) {
+              meeting(jobId: $jobId) {
+                jobId
+                title
+                status
+                summary
+                transcript
+                actions {
+                  id
+                  action
+                  owner
+                  deadline
+                  status
+                }
+                emails {
+                  recipient
+                  status
+                }
+                createdAt
+              }
+            }`,
+            variables: { jobId }
+          })
+        });
+
+        const result = await response.json();
+        if (result.data?.meeting) {
+          setData(result.data.meeting);
+        } else if (result.errors) {
+          throw new Error(result.errors[0]?.message || 'Failed to fetch meeting');
         }
-        const meetingData = await response.json();
-        setData(meetingData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unknown error');
         console.error('Error fetching meeting:', err);

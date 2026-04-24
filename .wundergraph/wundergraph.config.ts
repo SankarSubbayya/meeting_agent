@@ -1,4 +1,4 @@
-import { configureWunderGraphApplication, cors } from '@wundergraph/sdk';
+import { configureWunderGraphApplication, cors, EnvironmentVariable } from '@wundergraph/sdk';
 import server from './wundergraph.server';
 import operations from './operations';
 
@@ -9,7 +9,8 @@ const config = configureWunderGraphApplication({
     ...cors.allowAll,
   },
   security: {
-    enableGraphQLEndpoint: true,
+    enableGraphQLEndpoint: process.env.NODE_ENV !== 'production',
+    enableIntrospection: true,
   },
 });
 
