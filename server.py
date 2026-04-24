@@ -13,6 +13,7 @@ import os
 from dotenv import load_dotenv
 from anthropic import Anthropic
 import redis
+from agent import extract_action_items, send_emails, transcribe_audio
 
 load_dotenv()
 
@@ -49,117 +50,39 @@ except Exception as e:
     USE_REDIS = False
     meetings_db = {}
 
-# Tool implementations
-def transcribe_audio(audio_file: str) -> str:
-    """Mock transcription"""
-    return """Meeting Transcript - Q3 Goals Planning
-
-[00:00] PM: "Let's discuss Q3 goals and priorities"
-
-[00:15] Sarah: "I can ship the authentication API by Friday if we prioritize it."
-
-[00:45] Jane: "I'll run the database migration tests by Thursday to make sure everything is ready."
-
-[01:30] Designer: "I'll have the UI mockups done by Wednesday."
-
-[02:00] PM: "Great, let's also schedule a follow-up with Acme next week to show them the progress."
-
-[02:30] Sarah: "I can prepare a demo of the new features."
-
-[03:00] Jane: "I'll document the migration steps by Monday."
-"""
-
-def extract_action_items(transcript: str) -> list:
-    """Mock extraction"""
-    return [
-        {
-            "id": "action_1",
-            "action": "Ship authentication API",
-            "owner": "Sarah",
-            "deadline": "Friday",
-            "context": "Q3 priority - requires prioritization",
-            "status": "pending"
-        },
-        {
-            "id": "action_2",
-            "action": "Run database migration tests",
-            "owner": "Jane",
-            "deadline": "Thursday",
-            "context": "Ensure everything is ready for deployment",
-            "status": "pending"
-        },
-        {
-            "id": "action_3",
-            "action": "Complete UI mockups",
-            "owner": "Designer",
-            "deadline": "Wednesday",
-            "context": "Needed for development to begin",
-            "status": "pending"
-        },
-        {
-            "id": "action_4",
-            "action": "Schedule follow-up with Acme",
-            "owner": "PM",
-            "deadline": "Next week",
-            "context": "Show progress on new features",
-            "status": "pending"
-        },
-        {
-            "id": "action_5",
-            "action": "Prepare demo of new features",
-            "owner": "Sarah",
-            "deadline": "Friday",
-            "context": "For Acme follow-up meeting",
-            "status": "pending"
-        },
-        {
-            "id": "action_6",
-            "action": "Document migration steps",
-            "owner": "Jane",
-            "deadline": "Monday",
-            "context": "For team reference and deployment",
-            "status": "pending"
-        }
-    ]
-
-def send_emails(actions: list, meeting_id: str) -> list:
-    """Mock email sending"""
-    results = []
-    for action in actions:
-        owner = action.get("owner", "unknown")
-        results.append({
-            "recipient": f"{owner.lower().replace(' ', '.')}@company.com",
-            "status": "sent"
-        })
-    return results
+# Note: Tool implementations (transcribe_audio, extract_action_items, send_emails)
+# are imported from agent.py to use real Claude API and SendGrid integration
 
 async def run_agent(meeting_id: str, transcript: str):
-    """Run agent to process meeting"""
-    messages = [
-        {
-            "role": "user",
-            "content": f"""Process this meeting transcript and extract action items:
+    """Run agent to process meeting using Claude API"""
+    try:
+        # Extract action items from transcript (uses Claude API)
+        actions_json_str = extract_action_items(transcript)
+        actions = json.loads(actions_json_str)
 
-Meeting ID: {meeting_id}
-Transcript: {transcript}
+        # Send emails for each action (uses real SendGrid API)
+        emails_json_str = send_emails(json.dumps(actions), meeting_id)
+        email_result = json.loads(emails_json_str)
+        emails = email_result.get("results", [])
 
-Use your tools to:
-1. Confirm the transcript was received
-2. Extract action items
-3. Send emails to team members"""
+        # Generate summary
+        summary = f"Extracted {len(actions)} action items from meeting"
+
+        return {
+            "transcript": transcript,
+            "summary": summary,
+            "actions": actions,
+            "emails": emails
         }
-    ]
-
-    # For demo, we'll use the mock implementations
-    # In production, Claude would call real Vapi, etc.
-    actions = extract_action_items(transcript)
-    emails = send_emails(actions, meeting_id)
-
-    return {
-        "transcript": transcript,
-        "actions": actions,
-        "emails": emails
-    }
+    except Exception as e:
+        print(f"Error running agent: {e}")
+        return {
+            "transcript": transcript,
+            "summary": f"Error processing meeting: {str(e)}",
+            "actions": [],
+            "emails": [],
+            "error": str(e)
+        }
 
 def save_meeting_to_db(job_id: str, meeting_data: dict):
     """Save meeting data to Redis or in-memory DB"""
