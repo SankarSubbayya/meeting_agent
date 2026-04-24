@@ -95,25 +95,33 @@ def extract_action_items(transcript: str) -> str:
     """Extract action items from transcript using Claude API"""
     # Use Claude to extract real action items from the actual transcript
     extraction_prompt = f"""
-    Extract all action items from this meeting transcript. For each action item, identify:
-    1. The action/task to be done
+    You are an expert at extracting action items from meeting transcripts.
+
+    CRITICAL: Extract ONLY actions that are EXPLICITLY mentioned in this transcript.
+    Do NOT invent or assume actions. If someone says "I will do X by Y", that's an action.
+
+    For each action item, extract:
+    1. The action/task to be done - EXACT words from transcript
     2. The person responsible (owner) - use EXACT name from transcript
-    3. Their email address - MUST search for email addresses in format user@domain.com or name@company.com
-    4. The deadline if mentioned
+    3. Their email address - SEARCH the ENTIRE transcript for pattern: "name at email@domain.com" or "to email@domain.com"
+    4. The deadline if mentioned - EXACT deadline from transcript
 
-    IMPORTANT: Look for email addresses explicitly mentioned like "send to user@email.com" or "email: user@company.com"
+    CRITICAL EMAIL EXTRACTION: Look for patterns like:
+    - "send an email to PERSON at EMAIL@DOMAIN.COM"
+    - "email PERSON@DOMAIN.COM"
+    - "contact EMAIL@DOMAIN.COM"
 
-    Return as JSON array with fields: id, action, owner, email (exact email if found in transcript, null if not found), deadline, context
+    Return ONLY valid JSON array. Fields: id, action, owner, email (or null), deadline, context
 
-    Example format:
+    Example:
     [
-      {{"id": "action_1", "action": "do something", "owner": "John", "email": "john@company.com", "deadline": "Friday", "context": "reason"}}
+      {{"id": "action_1", "action": "Send email about compliance forms", "owner": "Sam", "email": "anantaverma20@gmail.com", "deadline": "Friday", "context": "Flag as high priority"}}
     ]
 
     Transcript:
     {transcript}
 
-    Return ONLY valid JSON array, no markdown, no extra text.
+    Return ONLY JSON array, no other text:
     """
 
     try:
