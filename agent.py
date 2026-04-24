@@ -97,16 +97,23 @@ def extract_action_items(transcript: str) -> str:
     extraction_prompt = f"""
     Extract all action items from this meeting transcript. For each action item, identify:
     1. The action/task to be done
-    2. The person responsible (owner)
-    3. Their email address if mentioned in the transcript
+    2. The person responsible (owner) - use EXACT name from transcript
+    3. Their email address - MUST search for email addresses in format user@domain.com or name@company.com
     4. The deadline if mentioned
 
-    Return as JSON array with fields: id, action, owner, email (or null if not found), deadline, context
+    IMPORTANT: Look for email addresses explicitly mentioned like "send to user@email.com" or "email: user@company.com"
+
+    Return as JSON array with fields: id, action, owner, email (exact email if found in transcript, null if not found), deadline, context
+
+    Example format:
+    [
+      {{"id": "action_1", "action": "do something", "owner": "John", "email": "john@company.com", "deadline": "Friday", "context": "reason"}}
+    ]
 
     Transcript:
     {transcript}
 
-    Return ONLY valid JSON array, no other text.
+    Return ONLY valid JSON array, no markdown, no extra text.
     """
 
     try:
