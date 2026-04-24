@@ -92,53 +92,51 @@ def transcribe_audio(audio_file: str) -> str:
     return mock_transcript
 
 def extract_action_items(transcript: str) -> str:
-    """Mock extraction - in production, calls Claude API"""
-    actions = [
-        {
-            "id": "action_1",
-            "action": "Ship authentication API",
-            "owner": "Sarah",
-            "deadline": "Friday",
-            "context": "Q2 priority - requires prioritization"
-        },
-        {
-            "id": "action_2",
-            "action": "Run database migration tests",
-            "owner": "Jane",
-            "deadline": "Thursday",
-            "context": "Ensure everything is ready for deployment"
-        },
-        {
-            "id": "action_3",
-            "action": "Complete UI mockups",
-            "owner": "Designer",
-            "deadline": "Wednesday",
-            "context": "Needed for development to begin"
-        },
-        {
-            "id": "action_4",
-            "action": "Schedule follow-up with Acme",
-            "owner": "PM",
-            "deadline": "Next week",
-            "context": "Show progress on new features"
-        },
-        {
-            "id": "action_5",
-            "action": "Prepare demo of new features",
-            "owner": "Sarah",
-            "deadline": "Friday",
-            "context": "For Acme follow-up meeting"
-        },
-        {
-            "id": "action_6",
-            "action": "Document migration steps",
-            "owner": "Jane",
-            "deadline": "Monday",
-            "context": "For team reference and deployment"
-        }
-    ]
-    print(f"[Tool] Extracted {len(actions)} action items")
-    return json.dumps(actions)
+    """Extract action items from transcript using Claude API"""
+    # Use Claude to extract real action items from the actual transcript
+    extraction_prompt = f"""
+    Extract all action items from this meeting transcript. For each action item, identify:
+    1. The action/task to be done
+    2. The person responsible (owner)
+    3. Their email address if mentioned in the transcript
+    4. The deadline if mentioned
+
+    Return as JSON array with fields: id, action, owner, email (or null if not found), deadline, context
+
+    Transcript:
+    {transcript}
+
+    Return ONLY valid JSON array, no other text.
+    """
+
+    try:
+        response = client.messages.create(
+            model=MODEL_ID,
+            max_tokens=1500,
+            messages=[{"role": "user", "content": extraction_prompt}]
+        )
+
+        response_text = response.content[0].text
+        # Try to parse the JSON response
+        actions = json.loads(response_text)
+
+        # Ensure all required fields exist
+        for i, action in enumerate(actions):
+            if "id" not in action:
+                action["id"] = f"action_{i+1}"
+            if "email" not in action:
+                action["email"] = None
+            if "context" not in action:
+                action["context"] = ""
+
+        print(f"[Tool] Extracted {len(actions)} action items from transcript")
+        return json.dumps(actions)
+    except (json.JSONDecodeError, IndexError) as e:
+        print(f"[Tool] Error extracting action items: {e}")
+        # Fallback to mock if Claude extraction fails
+        return json.dumps([
+            {"id": "action_1", "action": "Unable to extract actions", "owner": "Unknown", "email": None, "deadline": "ASAP", "context": "Check transcript format"}
+        ])
 
 def send_emails(actions: str, meeting_id: str) -> str:
     """Send action items via email using SendGrid API"""
@@ -152,7 +150,11 @@ def send_emails(actions: str, meeting_id: str) -> str:
             sg = SendGridAPIClient(sendgrid_key)
             for action in actions_data:
                 owner = action.get("owner", "unknown")
-                recipient_email = f"{owner.lower()}@company.com"
+
+                # Use email from transcript if available, otherwise construct it
+                recipient_email = action.get("email")
+                if not recipient_email:
+                    recipient_email = f"{owner.lower()}@company.com"
 
                 try:
                     mail = Mail(
@@ -161,13 +163,14 @@ def send_emails(actions: str, meeting_id: str) -> str:
                         subject=f"Action Item: {action.get('action')}",
                         html_content=f"""
                         <h3>{action.get('action')}</h3>
+                        <p><strong>Owner:</strong> {owner}</p>
                         <p><strong>Deadline:</strong> {action.get('deadline')}</p>
                         <p><strong>Meeting ID:</strong> {meeting_id}</p>
                         """
                     )
                     response = sg.send(mail)
                     email_results.append({
-                        "to": recipient_email,
+                        "recipient": recipient_email,
                         "status": "sent" if response.status_code == 202 else "failed",
                         "action_id": action.get("id"),
                         "action": action.get("action"),
@@ -176,7 +179,7 @@ def send_emails(actions: str, meeting_id: str) -> str:
                     print(f"[SendGrid] Email sent to {recipient_email} (code: {response.status_code})")
                 except Exception as e:
                     email_results.append({
-                        "to": recipient_email,
+                        "recipient": recipient_email,
                         "status": "failed",
                         "action_id": action.get("id"),
                         "action": action.get("action"),
@@ -187,8 +190,9 @@ def send_emails(actions: str, meeting_id: str) -> str:
             # Fallback to mock if no API key
             for action in actions_data:
                 owner = action.get("owner", "unknown")
+                recipient_email = action.get("email") or f"{owner.lower()}@company.com"
                 email_results.append({
-                    "to": f"{owner.lower()}@company.com",
+                    "recipient": recipient_email,
                     "status": "sent (mock)",
                     "action_id": action.get("id"),
                     "action": action.get("action")
