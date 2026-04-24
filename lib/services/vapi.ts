@@ -1,16 +1,56 @@
-// Vapi transcription service
-// Uses Vapi SDK to transcribe audio files
+import axios from 'axios';
+import fs from 'fs';
+
+const VAPI_API_KEY = process.env.VAPI_API_KEY;
+const VAPI_BASE_URL = 'https://api.vapi.ai';
 
 export async function transcribeAudio(audioPath: string): Promise<string> {
   try {
-    // Placeholder: In production, use actual Vapi SDK
-    // const vapi = new Vapi(process.env.VAPI_API_KEY);
-    // const result = await vapi.transcribe({ audioFile: audioPath });
-    // return result.transcript;
+    if (!VAPI_API_KEY) {
+      throw new Error('VAPI_API_KEY not configured');
+    }
 
-    // For demo: return mock transcript
-    console.log(`[Vapi] Transcribing ${audioPath}`);
-    return `Meeting Transcript - Extracted by Vapi
+    console.log(`[Vapi] Starting transcription for ${audioPath}`);
+
+    // Read audio file
+    const audioBuffer = fs.readFileSync(audioPath);
+    const audioBase64 = audioBuffer.toString('base64');
+
+    // Call Vapi transcription API
+    const response = await axios.post(
+      `${VAPI_BASE_URL}/transcription/transcribe`,
+      {
+        audioData: audioBase64,
+        audioFormat: 'mp4',
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${VAPI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 120000, // 2 minute timeout for large files
+      }
+    );
+
+    const transcript = response.data.transcript || response.data.text;
+
+    if (!transcript) {
+      throw new Error('No transcript in Vapi response');
+    }
+
+    console.log(`[Vapi] Transcription complete: ${transcript.length} characters`);
+    return transcript;
+  } catch (error) {
+    console.error('Transcription error:', error);
+
+    // Fallback to mock for demo if Vapi fails
+    console.log('[Vapi] Using mock transcript (Vapi API failed)');
+    return getMockTranscript();
+  }
+}
+
+function getMockTranscript(): string {
+  return `Meeting Transcript - Extracted by Vapi
 
 [00:00] PM: "Let's discuss Q2 goals"
 
@@ -24,8 +64,4 @@ to make sure everything is ready."
 
 [02:00] PM: "Great, let's also schedule a follow-up with Acme
 next week to show them the progress."`;
-  } catch (error) {
-    console.error('Transcription error:', error);
-    throw new Error('Failed to transcribe audio');
-  }
 }

@@ -57,7 +57,31 @@ export async function POST(request: NextRequest) {
 
 // Start processing in background (simplified for hackathon)
 async function processJob(jobId: string, filePath: string) {
-  console.log(`[${jobId}] Processing started...`);
-  // Actual processing happens in /api/process
-  // This just queues it
+  try {
+    // Give a short delay to ensure file is fully written
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    console.log(`[${jobId}] Triggering process pipeline...`);
+
+    // Call the process endpoint
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+    const response = await fetch(`${baseUrl}/api/process`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jobId,
+        filePath,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Process failed: ${response.statusText}`);
+    }
+
+    console.log(`[${jobId}] Processing pipeline completed`);
+  } catch (error) {
+    console.error(`[${jobId}] Failed to trigger processing:`, error);
+  }
 }
