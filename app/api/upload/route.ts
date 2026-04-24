@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { transcribeAudio } from '../../../../lib/services/vapi';
+import { extractActions } from '../../../../lib/services/claude';
+import { sendActionEmails } from '../../../../lib/services/email';
+import {
+  cacheMeetingData,
+  setMeetingStatus,
+} from '../../../../lib/services/redis';
 
 export const config = {
   api: {
@@ -23,25 +30,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate job ID
-    const jobId = uuid();
+    const jobId = randomUUID();
 
-    // Create temp directory for uploads
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    // Save file
     const filePath = path.join(uploadsDir, `${jobId}.mp4`);
     const bytes = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(bytes));
+    await fs.promises.writeFile(filePath, Buffer.from(bytes));
 
     console.log(`[${jobId}] File uploaded: ${file.name}`);
+    await setMeetingStatus(jobId, 'uploaded');
 
-    // Trigger async processing
-    // In production, this would be a queue job (Bull, RabbitMQ, etc.)
-    processJob(jobId, filePath).catch(err =>
+    processJob(jobId, filePath).catch((err) =>
       console.error(`[${jobId}] Processing error:`, err)
     );
 
@@ -55,9 +58,26 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Start processing in background (simplified for hackathon)
 async function processJob(jobId: string, filePath: string) {
-  console.log(`[${jobId}] Processing started...`);
-  // Actual processing happens in /api/process
-  // This just queues it
+  try {
+    await setMeetingStatus(jobId, 'transcribing');
+    const transcript = await transcribeAudio(filePath);
+
+    await setMeetingStatus(jobId, 'extracting');
+    const actions = await extractActions(transcript);
+
+    await setMeetingStatus(jobId, 'emailing');
+    const emailResults = await sendActionEmails(actions, jobId);
+
+    await cacheMeetingData(jobId, {
+      transcript,
+      actions,
+      emailResults,
+    });
+
+    console.log(`[${jobId}] Processing complete`);
+  } catch (error) {
+    console.error(`[${jobId}] Processing failed:`, error);
+    await setMeetingStatus(jobId, 'failed');
+  }
 }
