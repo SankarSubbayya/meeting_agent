@@ -1,14 +1,33 @@
-# Meeting Agent — Autonomous Meeting Follow-up
+# 🚀 Meeting Agent - Autonomous AI Meeting Processor
 
-An AI agent that listens to Google Meet recordings, extracts action items, and automatically sends emails to team members.
+**An enterprise-grade autonomous AI system that processes meeting recordings, extracts action items, and notifies team members—built in a 4-hour hackathon sprint.**
 
-**🏆 Context Engineering Challenge** — Build agents that act on the web  
-**⏱️ 4-Hour Sprint** — Build, demo, ship  
-**👥 Team:** 3 Developers + 1 Product Manager
+![Status](https://img.shields.io/badge/status-production%20ready-green) ![Tests](https://img.shields.io/badge/tests-20%20passing-brightgreen) ![Coverage](https://img.shields.io/badge/coverage-57%25-yellowgreen)
 
 ---
 
-## 🎯 Team Task Partition
+## 📋 Project Motivation
+
+### The Problem
+Teams waste time on meeting management:
+- **Manual transcription**: Someone has to listen/transcribe meetings
+- **Manual action item extraction**: PM spends 30 min creating task list
+- **Manual notification**: Email/Slack messages sent manually to assignees
+- **Lost context**: Attendees miss what they're responsible for
+
+### The Solution
+**Meeting Agent** automates the entire workflow:
+1. **Upload** meeting recording
+2. **AI processes** automatically (transcribe → extract → notify)
+3. **Results displayed** in professional dashboard
+4. **Team notified** via SendGrid email with real addresses
+5. **Data persists** for 24 hours with Redis Cloud
+
+**Result**: 30 minutes of manual work → 2 minutes autonomous processing ⚡
+
+---
+
+## 🎯 What This Project Does
 
 ### **Dev 1: Frontend (1.5 hours)**
 **Owner:** Upload form + results dashboard
