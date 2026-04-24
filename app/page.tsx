@@ -1,13 +1,89 @@
-import React from 'react';
+'use client';
+
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+interface Briefing {
+  jobId: string;
+  title: string;
+  createdAt: string;
+  actions: Array<{ id: string }>;
+  status: string;
+}
 
 export default function Home() {
-  // Filler data to make the dashboard look active and enterprise-ready
-  const recentBriefings = [
-    { id: '123', title: 'Q3 Product Roadmap Sync', date: 'Today, 10:00 AM', actions: 3, status: 'Executed' },
-    { id: '124', title: 'Acme Corp: Technical Onboarding', date: 'Yesterday, 2:30 PM', actions: 5, status: 'Executed' },
-    { id: '125', title: 'Weekly Engineering Standup', date: 'Apr 22, 9:00 AM', actions: 1, status: 'Pending Review' },
-  ];
+  const router = useRouter();
+  const [recentBriefings, setRecentBriefings] = useState<Briefing[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  useEffect(() => {
+    fetchMeetings();
+  }, []);
+
+  const fetchMeetings = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/meetings');
+      if (response.ok) {
+        const meetings = await response.json();
+        setRecentBriefings(meetings);
+      }
+    } catch (err) {
+      console.error('Error fetching meetings:', err);
+    }
+  };
+
+  const handleUpload = async (file: File) => {
+    try {
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:8000/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+      router.push(`/meeting/${result.jobId}`);
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      alert('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleUpload(e.dataTransfer.files[0]);
+    }
+  };
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleUpload(e.target.files[0]);
+    }
+  };
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">
@@ -46,9 +122,25 @@ export default function Home() {
               <h1 className="text-3xl font-serif font-semibold text-slate-900 mb-2">Recent Briefings</h1>
               <p className="text-slate-500 text-sm">Review meeting contexts and autonomous agent executions.</p>
             </div>
-            <button className="bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors">
-              + New Live Session
-            </button>
+            <label className="bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow-sm hover:bg-blue-700 transition-colors cursor-pointer">
+              + {uploading ? 'Uploading...' : 'New Live Session'}
+              <input type="file" onChange={handleFileInput} className="hidden" accept="audio/*,video/*" disabled={uploading} />
+            </label>
+          </div>
+
+          {/* Drag and Drop Upload Area */}
+          <div
+            onDragEnter={handleDrag}
+            onDragLeave={handleDrag}
+            onDragOver={handleDrag}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-xl p-8 text-center mb-8 transition-colors ${
+              dragActive ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-slate-50'
+            }`}
+          >
+            <p className="text-slate-600 text-sm">
+              Drag meeting recording here or click "New Live Session" to upload
+            </p>
           </div>
 
           {/* LIST OF RECORDINGS */}
@@ -60,22 +152,28 @@ export default function Home() {
             </div>
             
             <div className="divide-y divide-slate-100">
-              {recentBriefings.map((briefing) => (
-                <Link href={`/meeting/${briefing.id}`} key={briefing.id} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-slate-50 transition-colors group cursor-pointer">
-                  <div className="col-span-6">
-                    <p className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">{briefing.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{briefing.actions} autonomous actions identified</p>
-                  </div>
-                  <div className="col-span-3 text-sm text-slate-600">
-                    {briefing.date}
-                  </div>
-                  <div className="col-span-3 flex justify-end">
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${briefing.status === 'Executed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
-                      {briefing.status}
-                    </span>
-                  </div>
-                </Link>
-              ))}
+              {recentBriefings.length === 0 ? (
+                <div className="p-8 text-center text-slate-500">
+                  <p>No briefings yet. Upload a meeting recording to get started.</p>
+                </div>
+              ) : (
+                recentBriefings.map((briefing) => (
+                  <Link href={`/meeting/${briefing.jobId}`} key={briefing.jobId} className="grid grid-cols-12 gap-4 p-4 items-center hover:bg-slate-50 transition-colors group cursor-pointer">
+                    <div className="col-span-6">
+                      <p className="font-medium text-slate-900 group-hover:text-blue-600 transition-colors">{briefing.title}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{briefing.actions?.length || 0} autonomous actions identified</p>
+                    </div>
+                    <div className="col-span-3 text-sm text-slate-600">
+                      {new Date(briefing.createdAt).toLocaleDateString()}
+                    </div>
+                    <div className="col-span-3 flex justify-end">
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${briefing.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                        {briefing.status === 'completed' ? 'Executed' : 'Processing'}
+                      </span>
+                    </div>
+                  </Link>
+                ))
+              )}
             </div>
           </div>
 

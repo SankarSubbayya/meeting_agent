@@ -3,24 +3,68 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
+interface MeetingData {
+  jobId: string;
+  title: string;
+  summary: string;
+  transcript: string;
+  actions: Array<{ id: string; action: string; owner: string; deadline: string; status: string }>;
+  emails: Array<{ recipient: string; status: string }>;
+}
+
 export default function MeetingPage() {
   const params = useParams();
   const jobId = params.id as string;
-  
-  // Hardcoded filler data for UI visualization before backend is wired up
-  const data = {
-    title: jobId === '123' ? 'Q3 Product Roadmap Sync' : 'Strategy Session',
-    summary: "The team aligned on Q3 deliverables. The primary bottleneck is the new auth API, which Sarah will lead. Jane needs to finalize the database migration tests before Thursday to unblock the frontend team.",
-    transcript: "[00:00] PM: Let's review the Q3 plan.\n[00:15] Sarah: I can ship the Auth API by Friday if we prioritize it.\n[00:45] Jane: I will run the DB migration tests by Thursday.\n[01:10] PM: Great, let's lock those in as action items.",
-    actions: [
-      { id: '1', action: 'Ship Auth API', owner: 'Sarah', deadline: 'Friday', status: 'done' },
-      { id: '2', action: 'Run DB migration tests', owner: 'Jane', deadline: 'Thursday', status: 'pending' }
-    ],
-    emails: [
-      { recipient: 'sarah@company.com', status: 'sent' },
-      { recipient: 'jane@company.com', status: 'sent' }
-    ]
-  };
+  const [data, setData] = useState<MeetingData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchMeeting = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch(`http://localhost:8000/api/meeting/${jobId}`);
+        if (!response.ok) {
+          throw new Error('Failed to fetch meeting data');
+        }
+        const meetingData = await response.json();
+        setData(meetingData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        console.error('Error fetching meeting:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (jobId) {
+      fetchMeeting();
+    }
+  }, [jobId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-50 font-sans p-6 md:p-12 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-600">Processing meeting...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen bg-slate-50 font-sans p-6 md:p-12 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error: {error || 'No data found'}</p>
+          <button onClick={() => window.history.back()} className="text-blue-600 hover:text-blue-700">
+            ← Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 font-sans p-6 md:p-12">
