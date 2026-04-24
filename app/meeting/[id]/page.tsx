@@ -8,6 +8,7 @@ interface MeetingData {
   title: string;
   summary: string;
   transcript: string;
+  createdAt: string;
   actions: Array<{ id: string; action: string; owner: string; deadline: string; status: string }>;
   emails: Array<{ recipient: string; status: string }>;
 }
@@ -209,12 +210,12 @@ function generateCitedMD(data: MeetingData): string {
 ${data.actions.map((a) => `- [ ] **${a.action}**\n  - Owner: ${a.owner}\n  - Deadline: ${a.deadline}`).join('\n\n')}
 
 ## Emails Dispatched
-${data.emailResults.map((r) => `- ${r.recipient}: ${r.status}`).join('\n')}
+${data.emails.map((r) => `- ${r.recipient}: ${r.status}`).join('\n')}
 
 ## Raw Transcript
 ${data.transcript}
 
 ---
 Generated autonomously by ExecuAI
-`; // <-- Changed footer here
+`;
 }
