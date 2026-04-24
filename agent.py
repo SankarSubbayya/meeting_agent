@@ -8,6 +8,8 @@ import json
 import os
 from dotenv import load_dotenv
 from anthropic import Anthropic
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 
 load_dotenv()
 
@@ -139,21 +141,61 @@ def extract_action_items(transcript: str) -> str:
     return json.dumps(actions)
 
 def send_emails(actions: str, meeting_id: str) -> str:
-    """Mock email sending - in production, calls SendGrid"""
+    """Send action items via email using SendGrid API"""
     try:
         actions_data = json.loads(actions)
         email_results = []
+        sendgrid_key = os.getenv("SENDGRID_API_KEY")
 
-        for action in actions_data:
-            owner = action.get("owner", "unknown")
-            email_results.append({
-                "to": f"{owner.lower()}@company.com",
-                "status": "sent",
-                "action_id": action.get("id"),
-                "action": action.get("action")
-            })
+        if sendgrid_key:
+            # Use real SendGrid API
+            sg = SendGridAPIClient(sendgrid_key)
+            for action in actions_data:
+                owner = action.get("owner", "unknown")
+                recipient_email = f"{owner.lower()}@company.com"
 
-        print(f"[Tool] Sent {len(email_results)} action items via email")
+                try:
+                    mail = Mail(
+                        from_email="noreply@execuai.com",
+                        to_emails=recipient_email,
+                        subject=f"Action Item: {action.get('action')}",
+                        html_content=f"""
+                        <h3>{action.get('action')}</h3>
+                        <p><strong>Deadline:</strong> {action.get('deadline')}</p>
+                        <p><strong>Meeting ID:</strong> {meeting_id}</p>
+                        """
+                    )
+                    response = sg.send(mail)
+                    email_results.append({
+                        "to": recipient_email,
+                        "status": "sent" if response.status_code == 202 else "failed",
+                        "action_id": action.get("id"),
+                        "action": action.get("action"),
+                        "response_code": response.status_code
+                    })
+                    print(f"[SendGrid] Email sent to {recipient_email} (code: {response.status_code})")
+                except Exception as e:
+                    email_results.append({
+                        "to": recipient_email,
+                        "status": "failed",
+                        "action_id": action.get("id"),
+                        "action": action.get("action"),
+                        "error": str(e)
+                    })
+                    print(f"[SendGrid] Failed to send email to {recipient_email}: {e}")
+        else:
+            # Fallback to mock if no API key
+            for action in actions_data:
+                owner = action.get("owner", "unknown")
+                email_results.append({
+                    "to": f"{owner.lower()}@company.com",
+                    "status": "sent (mock)",
+                    "action_id": action.get("id"),
+                    "action": action.get("action")
+                })
+            print("[Tool] Using mock email sending (no SENDGRID_API_KEY)")
+
+        print(f"[Tool] Processed {len(email_results)} action items for email")
         return json.dumps({
             "meeting_id": meeting_id,
             "total_sent": len(email_results),
