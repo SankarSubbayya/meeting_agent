@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 import os
 from dotenv import load_dotenv
 from anthropic import Anthropic
+import redis
 
 load_dotenv()
 
@@ -34,8 +35,19 @@ if not api_key:
 client = Anthropic(api_key=api_key)
 MODEL_ID = "claude-opus-4-7"
 
-# In-memory storage (for hackathon demo)
-meetings_db = {}
+# Initialize Redis client
+try:
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    r = redis.from_url(redis_url, decode_responses=True)
+    # Test connection
+    r.ping()
+    print(f"✅ Redis connected: {redis_url}")
+    USE_REDIS = True
+except Exception as e:
+    print(f"⚠️  Redis not available: {e}")
+    print("   Falling back to in-memory storage")
+    USE_REDIS = False
+    meetings_db = {}
 
 # Tool implementations
 def transcribe_audio(audio_file: str) -> str:
@@ -149,6 +161,53 @@ Use your tools to:
         "emails": emails
     }
 
+def save_meeting_to_db(job_id: str, meeting_data: dict):
+    """Save meeting data to Redis or in-memory DB"""
+    if USE_REDIS:
+        try:
+            # Set with 24-hour expiration (86400 seconds)
+            r.setex(f"meeting:{job_id}", 86400, json.dumps(meeting_data))
+            r.setex(f"meeting:{job_id}:status", 86400, meeting_data.get("status", "processing"))
+            print(f"[Redis] Saved meeting {job_id}")
+        except Exception as e:
+            print(f"[Redis] Error saving: {e}")
+            # Fallback to in-memory
+            meetings_db[job_id] = meeting_data
+    else:
+        meetings_db[job_id] = meeting_data
+
+def get_meeting_from_db(job_id: str):
+    """Get meeting data from Redis or in-memory DB"""
+    if USE_REDIS:
+        try:
+            data = r.get(f"meeting:{job_id}")
+            if data:
+                return json.loads(data)
+            return None
+        except Exception as e:
+            print(f"[Redis] Error getting: {e}")
+            return meetings_db.get(job_id)
+    else:
+        return meetings_db.get(job_id)
+
+def get_all_meetings_from_db():
+    """Get all meetings from Redis or in-memory DB"""
+    if USE_REDIS:
+        try:
+            keys = r.keys("meeting:*:status")
+            meetings = []
+            for key in keys:
+                job_id = key.split(":")[1]
+                meeting = r.get(f"meeting:{job_id}")
+                if meeting:
+                    meetings.append(json.loads(meeting))
+            return meetings
+        except Exception as e:
+            print(f"[Redis] Error listing: {e}")
+            return list(meetings_db.values())
+    else:
+        return list(meetings_db.values())
+
 @app.post("/api/upload")
 async def upload_meeting(file: UploadFile = File(...)):
     """Upload and process a meeting recording"""
@@ -160,7 +219,7 @@ async def upload_meeting(file: UploadFile = File(...)):
         filename = file.filename or "meeting.mp4"
 
         # Create initial meeting record
-        meetings_db[job_id] = {
+        meeting_record = {
             "jobId": job_id,
             "filename": filename,
             "status": "processing",
@@ -172,6 +231,9 @@ async def upload_meeting(file: UploadFile = File(...)):
             "createdAt": str(__import__('datetime').datetime.now())
         }
 
+        # Save initial state to Redis/DB
+        save_meeting_to_db(job_id, meeting_record)
+
         # Process the meeting
         transcript = transcribe_audio(filename)
         actions = extract_action_items(transcript)
@@ -181,13 +243,16 @@ async def upload_meeting(file: UploadFile = File(...)):
         summary = f"The team discussed key deliverables. {len(actions)} action items were identified and assigned to team members."
 
         # Update meeting record
-        meetings_db[job_id].update({
+        meeting_record.update({
             "status": "completed",
             "transcript": transcript,
             "summary": summary,
             "actions": actions,
             "emails": emails
         })
+
+        # Save final state to Redis/DB
+        save_meeting_to_db(job_id, meeting_record)
 
         return JSONResponse({
             "jobId": job_id,
@@ -200,10 +265,10 @@ async def upload_meeting(file: UploadFile = File(...)):
 @app.get("/api/status/{job_id}")
 async def get_status(job_id: str):
     """Get processing status"""
-    if job_id not in meetings_db:
+    meeting = get_meeting_from_db(job_id)
+    if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
-    meeting = meetings_db[job_id]
     return JSONResponse({
         "jobId": job_id,
         "status": meeting["status"],
@@ -213,16 +278,16 @@ async def get_status(job_id: str):
 @app.get("/api/meeting/{job_id}")
 async def get_meeting(job_id: str):
     """Get meeting details and processed results"""
-    if job_id not in meetings_db:
+    meeting = get_meeting_from_db(job_id)
+    if not meeting:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
-    meeting = meetings_db[job_id]
     return JSONResponse(meeting)
 
 @app.get("/api/meetings")
 async def list_meetings():
     """List all processed meetings"""
-    return JSONResponse(list(meetings_db.values()))
+    return JSONResponse(get_all_meetings_from_db())
 
 @app.get("/health")
 async def health():
