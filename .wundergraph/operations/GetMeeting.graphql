@@ -1,0 +1,21 @@
+query GetMeeting($jobId: String!) {
+  meeting_api_GET_api_meeting_jobId(jobId: $jobId) {
+    jobId
+    title
+    status
+    summary
+    transcript
+    actions {
+      id
+      action
+      owner
+      deadline
+      status
+    }
+    emails {
+      recipient
+      status
+    }
+    createdAt
+  }
+}
