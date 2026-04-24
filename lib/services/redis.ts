@@ -13,6 +13,29 @@ async function getClient() {
   return client;
 }
 
+export async function setMeetingStatus(jobId: string, status: string) {
+  try {
+    const redis = await getClient();
+    await redis.set(`meeting:${jobId}:status`, status, {
+      EX: 86400,
+    });
+    console.log(`[Redis] Set status for ${jobId} -> ${status}`);
+  } catch (error) {
+    console.error('Redis status set error:', error);
+  }
+}
+
+export async function getMeetingStatus(jobId: string) {
+  try {
+    const redis = await getClient();
+    const status = await redis.get(`meeting:${jobId}:status`);
+    return status;
+  } catch (error) {
+    console.error('Redis status get error:', error);
+    return null;
+  }
+}
+
 export async function cacheMeetingData(
   jobId: string,
   data: {
@@ -28,15 +51,16 @@ export async function cacheMeetingData(
       JSON.stringify({
         ...data,
         createdAt: new Date().toISOString(),
+        jobId,
       }),
       {
         EX: 86400, // 24 hour TTL
       }
     );
+    await setMeetingStatus(jobId, 'done');
     console.log(`[Redis] Cached meeting ${jobId}`);
   } catch (error) {
     console.error('Redis cache error:', error);
-    // Don't throw - caching is optional
   }
 }
 

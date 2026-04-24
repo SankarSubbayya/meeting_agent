@@ -3,183 +3,143 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 
-interface ActionItem {
-  id: string;
-  action: string;
-  owner: string;
-  deadline: string;
-  status: 'pending' | 'done';
-}
-
-interface MeetingData {
-  jobId: string;
-  transcript: string;
-  actions: ActionItem[];
-  emailResults: Array<{ recipient: string; status: string }>;
-  createdAt: string;
-}
-
 export default function MeetingPage() {
   const params = useParams();
   const jobId = params.id as string;
-  const [data, setData] = useState<MeetingData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch(`/api/meeting/${jobId}`);
-        if (!response.ok) throw new Error('Failed to fetch meeting data');
-        const result = await response.json();
-        setData(result);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Unknown error');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, [jobId]);
-
-  if (loading) {
-    return (
-      <div className="space-y-8">
-        <h2 className="text-2xl font-bold">Processing Meeting...</h2>
-        <div className="space-y-2">
-          <div className="h-4 bg-slate-700 rounded animate-pulse"></div>
-          <div className="h-4 bg-slate-700 rounded animate-pulse w-5/6"></div>
-          <div className="h-4 bg-slate-700 rounded animate-pulse w-4/6"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !data) {
-    return (
-      <div className="bg-red-900/20 border border-red-700 rounded-lg p-6">
-        <p className="text-red-400">Error: {error || 'Failed to load meeting'}</p>
-      </div>
-    );
-  }
+  
+  // Hardcoded filler data for UI visualization before backend is wired up
+  const data = {
+    title: jobId === '123' ? 'Q3 Product Roadmap Sync' : 'Strategy Session',
+    summary: "The team aligned on Q3 deliverables. The primary bottleneck is the new auth API, which Sarah will lead. Jane needs to finalize the database migration tests before Thursday to unblock the frontend team.",
+    transcript: "[00:00] PM: Let's review the Q3 plan.\n[00:15] Sarah: I can ship the Auth API by Friday if we prioritize it.\n[00:45] Jane: I will run the DB migration tests by Thursday.\n[01:10] PM: Great, let's lock those in as action items.",
+    actions: [
+      { id: '1', action: 'Ship Auth API', owner: 'Sarah', deadline: 'Friday', status: 'done' },
+      { id: '2', action: 'Run DB migration tests', owner: 'Jane', deadline: 'Thursday', status: 'pending' }
+    ],
+    emails: [
+      { recipient: 'sarah@company.com', status: 'sent' },
+      { recipient: 'jane@company.com', status: 'sent' }
+    ]
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="space-y-2">
-        <h2 className="text-3xl font-bold">Meeting Results</h2>
-        <p className="text-slate-400">
-          Meeting ID: <code className="text-cyan-400">{jobId.slice(0, 8)}...</code>
-        </p>
-      </div>
+    <div className="min-h-screen bg-slate-50 font-sans p-6 md:p-12">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Navigation & Header */}
+        <div>
+          <button onClick={() => window.history.back()} className="text-sm font-medium text-slate-500 hover:text-blue-600 mb-4 flex items-center gap-1">
+            ← Back to Workspace
+          </button>
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-3xl font-serif font-semibold text-slate-900">{data.title}</h1>
+              <p className="text-slate-500 text-sm mt-1">Briefing ID: {jobId} • Processed autonomously</p>
+            </div>
+            <button className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium shadow-sm hover:bg-slate-50 transition-colors">
+              Export cited.md
+            </button>
+          </div>
+        </div>
 
-      {/* Actions */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-bold text-cyan-400">
-          ✅ Extracted Actions ({data.actions.length})
-        </h3>
-        <div className="space-y-3">
-          {data.actions.map((action) => (
-            <div
-              key={action.id}
-              className="bg-slate-900 border border-slate-700 rounded-lg p-4"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-white font-medium">{action.action}</p>
-                  <div className="flex gap-4 mt-2 text-sm text-slate-400">
-                    <span>👤 {action.owner}</span>
-                    <span>📅 {action.deadline}</span>
-                  </div>
-                </div>
-                <div className={`text-sm font-medium ${
-                  action.status === 'done' ? 'text-green-400' : 'text-yellow-400'
-                }`}>
-                  {action.status === 'done' ? '✅ Done' : '⏳ Pending'}
-                </div>
+        <div className="grid lg:grid-cols-3 gap-6">
+          
+          {/* LEFT COLUMN: The Context (Summary & Transcript) */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* AI Summary */}
+            <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-blue-600"></span> Executive Summary
+              </h2>
+              <p className="text-slate-600 text-sm leading-relaxed">
+                {data.summary}
+              </p>
+            </div>
+
+            {/* Raw Transcript */}
+            <div className="bg-white border border-slate-200 rounded-xl flex flex-col shadow-sm h-[500px]">
+              <div className="p-4 border-b border-slate-100 bg-slate-50/50 rounded-t-xl">
+                <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">Raw Transcript</h2>
+              </div>
+              <div className="p-6 overflow-y-auto flex-1 bg-slate-50/30">
+                <pre className="text-sm text-slate-600 whitespace-pre-wrap break-words font-sans leading-relaxed">
+                  {data.transcript}
+                </pre>
               </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* Email Status */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-bold text-green-400">
-          ✉️ Emails Sent ({data.emailResults.length})
-        </h3>
-        <div className="space-y-2">
-          {data.emailResults.map((result, idx) => (
-            <div key={idx} className="flex items-center justify-between bg-slate-900 border border-slate-700 rounded px-4 py-3">
-              <span className="text-slate-300">{result.recipient}</span>
-              <span className={result.status === 'sent' ? 'text-green-400' : 'text-red-400'}>
-                {result.status === 'sent' ? '✅ Sent' : '❌ Failed'}
-              </span>
+          {/* RIGHT COLUMN: The Agent Execution Log */}
+          <div className="space-y-6">
+            <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 overflow-hidden flex flex-col h-full">
+              
+              <div className="p-5 border-b border-slate-800 bg-slate-950/50">
+                <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 
+                  Agent Execution Log
+                </h2>
+                <p className="text-slate-400 text-xs mt-1">Actions taken based on briefing context</p>
+              </div>
+
+              <div className="p-5 space-y-6 flex-1 overflow-y-auto">
+                
+                {/* Extracted Tasks */}
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Tasks Assigned</h3>
+                  <div className="space-y-3">
+                    {data.actions.map(action => (
+                      <div key={action.id} className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-3">
+                        <p className="text-sm text-white font-medium mb-2">{action.action}</p>
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-slate-400">👤 {action.owner}</span>
+                          <span className="text-slate-400">📅 {action.deadline}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Email Dispatch */}
+                <div>
+                  <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Communications Dispatched</h3>
+                  <div className="space-y-2">
+                    {data.emails.map((email, i) => (
+                      <div key={i} className="flex justify-between items-center bg-slate-800/50 border border-slate-700/50 rounded-lg p-3">
+                        <span className="text-xs text-slate-300 truncate mr-2">{email.recipient}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">
+                          Sent
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* Transcript */}
-      <div className="space-y-4">
-        <h3 className="text-xl font-bold text-cyan-400">📝 Full Transcript</h3>
-        <div className="bg-slate-900 border border-slate-700 rounded-lg p-6 max-h-96 overflow-y-auto">
-          <pre className="text-sm text-slate-300 whitespace-pre-wrap break-words">
-            {data.transcript}
-          </pre>
         </div>
-      </div>
-
-      {/* Download */}
-      <div className="flex gap-4">
-        <button
-          onClick={() => {
-            const element = document.createElement('a');
-            element.setAttribute('href', `data:text/plain;charset=utf-8,${encodeURIComponent(generateCitedMD(data))}`);
-            element.setAttribute('download', `meeting-${jobId}.md`);
-            element.style.display = 'none';
-            document.body.appendChild(element);
-            element.click();
-            document.body.removeChild(element);
-          }}
-          className="bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-2 rounded font-medium"
-        >
-          📄 Download cited.md
-        </button>
-        <button
-          onClick={() => window.history.back()}
-          className="bg-slate-700 hover:bg-slate-600 text-white px-6 py-2 rounded font-medium"
-        >
-          ← Back
-        </button>
       </div>
     </div>
   );
 }
-
+// Markdown Generator goes down here, OUTSIDE the main component
 function generateCitedMD(data: MeetingData): string {
   return `# Meeting Summary
 **Date:** ${new Date(data.createdAt).toLocaleDateString()}
 **Meeting ID:** ${data.jobId}
 
-## Transcript
-${data.transcript}
-
 ## Actions Extracted
-${data.actions
-  .map(
-    (a) => `- [ ] **${a.action}**
-  - Owner: ${a.owner}
-  - Deadline: ${a.deadline}
-  - Status: ${a.status}`
-  )
-  .join('\n\n')}
+${data.actions.map((a) => `- [ ] **${a.action}**\n  - Owner: ${a.owner}\n  - Deadline: ${a.deadline}`).join('\n\n')}
 
-## Emails Sent
+## Emails Dispatched
 ${data.emailResults.map((r) => `- ${r.recipient}: ${r.status}`).join('\n')}
 
+## Raw Transcript
+${data.transcript}
+
 ---
-Generated by Meeting Agent • Ship to Production 2026
-`;
+Generated autonomously by ExecuAI
+`; // <-- Changed footer here
 }

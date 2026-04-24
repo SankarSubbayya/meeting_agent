@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { v4 as uuid } from 'uuid';
+import { randomUUID } from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { transcribeAudio } from '../../../../lib/services/vapi';
+import { extractActions } from '../../../../lib/services/claude';
+import { sendActionEmails } from '../../../../lib/services/email';
+import {
+  cacheMeetingData,
+  setMeetingStatus,
+} from '../../../../lib/services/redis';
 
 export const config = {
   api: {
@@ -23,25 +30,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate job ID
-    const jobId = uuid();
+    const jobId = randomUUID();
 
-    // Create temp directory for uploads
     const uploadsDir = path.join(process.cwd(), 'uploads');
     if (!fs.existsSync(uploadsDir)) {
       fs.mkdirSync(uploadsDir, { recursive: true });
     }
 
-    // Save file
     const filePath = path.join(uploadsDir, `${jobId}.mp4`);
     const bytes = await file.arrayBuffer();
-    fs.writeFileSync(filePath, Buffer.from(bytes));
+    await fs.promises.writeFile(filePath, Buffer.from(bytes));
 
     console.log(`[${jobId}] File uploaded: ${file.name}`);
+    await setMeetingStatus(jobId, 'uploaded');
 
-    // Trigger async processing
-    // In production, this would be a queue job (Bull, RabbitMQ, etc.)
-    processJob(jobId, filePath).catch(err =>
+    processJob(jobId, filePath).catch((err) =>
       console.error(`[${jobId}] Processing error:`, err)
     );
 
@@ -55,33 +58,27 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Start processing in background (simplified for hackathon)
 async function processJob(jobId: string, filePath: string) {
   try {
-    // Give a short delay to ensure file is fully written
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await setMeetingStatus(jobId, 'transcribing');
+    const transcript = await transcribeAudio(filePath);
 
-    console.log(`[${jobId}] Triggering process pipeline...`);
+    await setMeetingStatus(jobId, 'extracting');
+    const actions = await extractActions(transcript);
 
-    // Call the process endpoint
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
-    const response = await fetch(`${baseUrl}/api/process`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jobId,
-        filePath,
-      }),
+    await setMeetingStatus(jobId, 'emailing');
+    const emailResults = await sendActionEmails(actions, jobId);
+
+    await cacheMeetingData(jobId, {
+      transcript,
+      actions,
+      emailResults,
     });
 
-    if (!response.ok) {
-      throw new Error(`Process failed: ${response.statusText}`);
-    }
-
-    console.log(`[${jobId}] Processing pipeline completed`);
+    await setMeetingStatus(jobId, 'completed');
+    console.log(`[${jobId}] Processing complete`);
   } catch (error) {
-    console.error(`[${jobId}] Failed to trigger processing:`, error);
+    console.error(`[${jobId}] Processing failed:`, error);
+    await setMeetingStatus(jobId, 'failed');
   }
 }
