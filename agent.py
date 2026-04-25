@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from anthropic import Anthropic
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
+import requests
 
 load_dotenv()
 
@@ -154,55 +155,72 @@ def extract_action_items(transcript: str) -> str:
         ])
 
 def send_emails(actions: str, meeting_id: str) -> str:
-    """Send action items via email using SendGrid API"""
+    """Send action items via email using Composio API"""
     try:
         actions_data = json.loads(actions)
         email_results = []
-        sendgrid_key = os.getenv("SENDGRID_API_KEY")
+        composio_key = os.getenv("COMPOSIO_API_KEY")
 
-        if sendgrid_key:
-            # Use real SendGrid API
-            sg = SendGridAPIClient(sendgrid_key)
+        if composio_key:
+            # Use Composio v3 API for email sending
+            composio_url = "https://api.composio.dev/api/v3"
+            headers = {
+                "Authorization": f"Bearer {composio_key}",
+                "Content-Type": "application/json"
+            }
+
             for action in actions_data:
                 owner = action.get("owner", "unknown")
-
-                # Use email from transcript if available, otherwise construct it
                 recipient_email = action.get("email")
                 if not recipient_email:
                     recipient_email = f"{owner.lower()}@company.com"
 
                 try:
-                    mail = Mail(
-                        from_email="noreply@execuai.com",
-                        to_emails=recipient_email,
-                        subject=f"Action Item: {action.get('action')}",
-                        html_content=f"""
-                        <h3>{action.get('action')}</h3>
-                        <p><strong>Owner:</strong> {owner}</p>
-                        <p><strong>Deadline:</strong> {action.get('deadline')}</p>
-                        <p><strong>Meeting ID:</strong> {meeting_id}</p>
-                        """
+                    # Send email via Composio - using v3 API
+                    payload = {
+                        "name": "gmail_send_message",
+                        "input": {
+                            "body": f"{action.get('action')}\n\nOwner: {owner}\nDeadline: {action.get('deadline')}\nMeeting ID: {meeting_id}",
+                            "to_email": recipient_email,
+                            "subject": f"Action Item: {action.get('action')}"
+                        }
+                    }
+
+                    response = requests.post(
+                        f"{composio_url}/agents/execute",
+                        json=payload,
+                        headers=headers,
+                        timeout=10
                     )
-                    response = sg.send(mail)
-                    email_results.append({
-                        "recipient": recipient_email,
-                        "status": "sent" if response.status_code == 202 else "failed",
-                        "action_id": action.get("id"),
-                        "action": action.get("action"),
-                        "response_code": response.status_code
-                    })
-                    print(f"[SendGrid] Email sent to {recipient_email} (code: {response.status_code})")
+
+                    if response.status_code in [200, 201, 202]:
+                        email_results.append({
+                            "recipient": recipient_email,
+                            "status": "sent",
+                            "action_id": action.get("id"),
+                            "action": action.get("action"),
+                            "response_code": response.status_code
+                        })
+                        print(f"[Composio] ✅ Email sent to {recipient_email}")
+                    else:
+                        email_results.append({
+                            "recipient": recipient_email,
+                            "status": "failed",
+                            "action_id": action.get("id"),
+                            "action": action.get("action"),
+                            "error": f"HTTP {response.status_code}"
+                        })
+                        print(f"[Composio] ❌ Failed: {response.status_code}")
+
                 except Exception as e:
-                    # For demo: show as "sent" even if SendGrid fails
-                    # In production, would retry or log for manual handling
                     email_results.append({
                         "recipient": recipient_email,
-                        "status": "sent",  # Demo mode - show as sent
+                        "status": "failed",
                         "action_id": action.get("id"),
                         "action": action.get("action"),
-                        "response_code": 202  # Simulate success
+                        "error": str(e)
                     })
-                    print(f"[SendGrid] Demo mode: email queued to {recipient_email}")
+                    print(f"[Composio] ❌ Error: {e}")
         else:
             # Fallback to mock if no API key
             for action in actions_data:
@@ -214,7 +232,7 @@ def send_emails(actions: str, meeting_id: str) -> str:
                     "action_id": action.get("id"),
                     "action": action.get("action")
                 })
-            print("[Tool] Using mock email sending (no SENDGRID_API_KEY)")
+            print("[Tool] Using mock email sending (no COMPOSIO_API_KEY)")
 
         print(f"[Tool] Processed {len(email_results)} action items for email")
         return json.dumps({
